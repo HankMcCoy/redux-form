@@ -1,7 +1,7 @@
 // @flow
 import hoistStatics from 'hoist-non-react-statics'
 import isPromise from 'is-promise'
-import { mapValues, merge } from 'lodash'
+import { debounce, mapValues, merge, remove } from 'lodash'
 import PropTypes from 'prop-types'
 import { Component, createElement } from 'react'
 import { connect } from 'react-redux'
@@ -118,6 +118,7 @@ type ArraySwapAction = (field: string, indexA: number, indexB: number) => void
 type ClearSubmitAction = () => void
 type DestroyAction = () => void
 type RegisterFieldAction = (name: string, type: FieldType) => void
+type RegisterFieldsAction = (registrations: Array<Registration>) => void
 type UnregisterFieldAction = (name: string, destroyOnUnmount: ?boolean) => void
 type ResetAction = () => void
 type SetSubmitFailedAction = (...fields: string[]) => void
@@ -151,8 +152,17 @@ type OnChangeFunction = (
   dispatch: Function,
   props: Object
 ) => void
+type QueuedRegistration = {
+  name: string,
+  type: string
+}
+type QueuedUnregistration = {
+  name: string,
+  destroyOnUnmount: boolean
+}
 
 export type Config = {
+  asyncRegister?: boolean,
   asyncBlurFields?: string[],
   destroyOnUnmount?: boolean,
   forceUnregisterOnUnmount?: boolean,
@@ -216,6 +226,7 @@ export type Props = {
   propNamespace?: string,
   registeredFields: Array<{ name: string, type: FieldType, count: number }>,
   registerField: RegisterFieldAction,
+  registerFields: RegisterFieldsAction,
   reset: ResetAction,
   setSubmitFailed: SetSubmitFailedAction,
   setSubmitSucceeded: SetSubmitSucceededAction,
@@ -236,6 +247,7 @@ export type Props = {
   syncErrors?: Object,
   syncWarnings?: Object,
   unregisterField: UnregisterFieldAction,
+  unregisterFields: UnregisterFieldsAction,
   untouch: UntouchAction,
   updateSyncErrors: UpdateSyncErrorsAction,
   updateSyncWarnings: UpdateSyncWarningsAction,
@@ -255,6 +267,7 @@ const createReduxForm = (structure: Structure<*, *>) => {
   const isValid = createIsValid(structure)
   return (initialConfig: Config) => {
     const config = {
+      asyncRegister: false,
       touchOnBlur: true,
       touchOnChange: false,
       persistentSubmitErrors: false,
@@ -283,6 +296,8 @@ const createReduxForm = (structure: Structure<*, *>) => {
         lastFieldWarnerKeys = []
         innerOnSubmit = undefined
         submitPromise = undefined
+        queuedRegistrations: Array<QueuedRegistration> = []
+        queuedUnregistrations: Array<QueuedUnregistration> = []
 
         getChildContext() {
           return {
@@ -293,8 +308,12 @@ const createReduxForm = (structure: Structure<*, *>) => {
               asyncValidate: this.asyncValidate,
               getValues: this.getValues,
               sectionPrefix: undefined,
-              register: this.register,
-              unregister: this.unregister,
+              register: config.asyncRegister
+                ? this.asyncRegister
+                : this.register,
+              unregister: config.asyncRegister
+                ? this.asyncUnregister
+                : this.unregister,
               registerInnerOnSubmit: innerOnSubmit =>
                 (this.innerOnSubmit = innerOnSubmit)
             }
@@ -512,11 +531,55 @@ const createReduxForm = (structure: Structure<*, *>) => {
           getWarner: Function
         ) => {
           this.props.registerField(name, type)
+          this.registerFieldMethods(name, getValidator, getWarner)
+        }
+
+        asyncRegister = (
+          name: string,
+          type: FieldType,
+          getValidator: Function,
+          getWarner: Function
+        ) => {
+          this.queueRegister(name, type)
+          this.registerFieldMethods(name, getValidator, getWarner)
+        }
+
+        registerFieldMethods = (
+          name: string,
+          getValidator: Function,
+          getWarner: Function
+        ) => {
           if (getValidator) {
             this.fieldValidators[name] = getValidator
           }
           if (getWarner) {
             this.fieldWarners[name] = getWarner
+          }
+        }
+
+        queueRegister = (name: string, type: FieldType) => {
+          // If there are any queued unregisters for this field, just remove
+          // those instead.
+          if (remove(this.queuedUnregistrations, r => r.name !== name).length) {
+            // Otherwise, add it to the queue, and schedule a flush
+            this.queuedRegistrations.push({
+              name,
+              type
+            })
+            this.flushRegistrationsSoon()
+          }
+        }
+
+        queueUnregister = (name: string, destroyOnUnmount: boolean = true) => {
+          // If there are any queued registers for this field, just remove
+          // those instead.
+          if (remove(this.queuedRegistrations, r => r.name !== name).length) {
+            // Otherwise, add it to the queue, and schedule a flush
+            this.queuedUnregistrations.push({
+              name,
+              destroyOnUnmount
+            })
+            this.flushRegistrationsSoon()
           }
         }
 
@@ -527,13 +590,41 @@ const createReduxForm = (structure: Structure<*, *>) => {
               this.props.forceUnregisterOnUnmount
             ) {
               this.props.unregisterField(name)
-              delete this.fieldValidators[name]
-              delete this.fieldWarners[name]
+              this.unregisterFieldMethods(name)
             } else {
               this.props.unregisterField(name, false)
             }
           }
         }
+
+        asyncUnregister = (name: string) => {
+          if (!this.destroyed) {
+            if (
+              this.props.destroyOnUnmount ||
+              this.props.forceUnregisterOnUnmount
+            ) {
+              this.queueUnregister(name)
+              this.unregisterFieldMethods(name)
+            } else {
+              this.queueUnregister(name, false)
+            }
+          }
+        }
+
+        unregisterFieldMethods = (name: string) => {
+          delete this.fieldValidators[name]
+          delete this.fieldWarners[name]
+        }
+
+        flushRegistrationsSoon = debounce(() => {
+          this.queuedRegistrationGroups.forEach(group => {
+            if (group.type === 'REGISTER') {
+              this.props.registerFields(this.queuedRegistrations)
+            } else {
+              this.props.unregisterFields(this.queuedUnregistrations)
+            }
+          })
+        }, 0)
 
         getFieldList = (options: Object): string[] => {
           let registeredFields = this.props.registeredFields
@@ -745,6 +836,7 @@ const createReduxForm = (structure: Structure<*, *>) => {
             propNamespace,
             registeredFields,
             registerField,
+            registerFields,
             reset,
             setSubmitFailed,
             setSubmitSucceeded,
@@ -764,6 +856,7 @@ const createReduxForm = (structure: Structure<*, *>) => {
             syncErrors,
             syncWarnings,
             unregisterField,
+            unregisterFields,
             untouch,
             updateSyncErrors,
             updateSyncWarnings,

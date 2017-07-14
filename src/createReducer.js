@@ -21,6 +21,7 @@ import {
   INITIALIZE,
   prefix,
   REGISTER_FIELD,
+  REGISTER_FIELDS,
   RESET,
   SET_SUBMIT_FAILED,
   SET_SUBMIT_SUCCEEDED,
@@ -31,6 +32,7 @@ import {
   SUBMIT,
   TOUCH,
   UNREGISTER_FIELD,
+  UNREGISTER_FIELDS,
   UNTOUCH,
   UPDATE_SYNC_ERRORS,
   UPDATE_SYNC_WARNINGS
@@ -116,6 +118,43 @@ function createReducer<M, L>(structure: Structure<M, L>) {
       undefined
     )
     result = doSplice(result, 'asyncErrors', field, index, removeNum, undefined)
+    return result
+  }
+
+  const registerField = (state, name, type) => {
+    const key = `registeredFields['${name}']`
+    let field = getIn(state, key)
+    if (field) {
+      const count = getIn(field, 'count') + 1
+      field = setIn(field, 'count', count)
+    } else {
+      field = fromJS({ name, type, count: 1 })
+    }
+    return setIn(state, key, field)
+  }
+  const unregisterField = (state, name, destroyOnUnmount) => {
+    let result = state
+    const key = `registeredFields['${name}']`
+    let field = getIn(result, key)
+    if (!field) {
+      return result
+    }
+
+    const count = getIn(field, 'count') - 1
+    if (count <= 0 && destroyOnUnmount) {
+      // Note: Cannot use deleteWithCleanUp here because of the flat nature of registeredFields
+      result = deleteIn(result, key)
+      if (deepEqual(getIn(result, 'registeredFields'), empty)) {
+        result = deleteIn(result, 'registeredFields')
+      }
+      result = deleteInWithCleanUp(result, `syncErrors.${name}`)
+      result = deleteInWithCleanUp(result, `submitErrors.${name}`)
+      result = deleteInWithCleanUp(result, `asyncErrors.${name}`)
+      result = deleteInWithCleanUp(result, `syncWarnings.${name}`)
+    } else {
+      field = setIn(field, 'count', count)
+      result = setIn(result, key, field)
+    }
     return result
   }
 
@@ -339,15 +378,12 @@ function createReducer<M, L>(structure: Structure<M, L>) {
       return result
     },
     [REGISTER_FIELD](state, { payload: { name, type } }) {
-      const key = `registeredFields['${name}']`
-      let field = getIn(state, key)
-      if (field) {
-        const count = getIn(field, 'count') + 1
-        field = setIn(field, 'count', count)
-      } else {
-        field = fromJS({ name, type, count: 1 })
-      }
-      return setIn(state, key, field)
+      return registerField(state, name, type)
+    },
+    [REGISTER_FIELDS](state, { payload: { registrations } }) {
+      return registrations.reduce((curState, { name, type }) => {
+        return registerField(curState, name, type)
+      }, state)
     },
     [RESET](state) {
       let result = empty
@@ -440,29 +476,12 @@ function createReducer<M, L>(structure: Structure<M, L>) {
       return result
     },
     [UNREGISTER_FIELD](state, { payload: { name, destroyOnUnmount } }) {
-      let result = state
-      const key = `registeredFields['${name}']`
-      let field = getIn(result, key)
-      if (!field) {
-        return result
-      }
-
-      const count = getIn(field, 'count') - 1
-      if (count <= 0 && destroyOnUnmount) {
-        // Note: Cannot use deleteWithCleanUp here because of the flat nature of registeredFields
-        result = deleteIn(result, key)
-        if (deepEqual(getIn(result, 'registeredFields'), empty)) {
-          result = deleteIn(result, 'registeredFields')
-        }
-        result = deleteInWithCleanUp(result, `syncErrors.${name}`)
-        result = deleteInWithCleanUp(result, `submitErrors.${name}`)
-        result = deleteInWithCleanUp(result, `asyncErrors.${name}`)
-        result = deleteInWithCleanUp(result, `syncWarnings.${name}`)
-      } else {
-        field = setIn(field, 'count', count)
-        result = setIn(result, key, field)
-      }
-      return result
+      return unregisterField(state, name, destroyOnUnmount)
+    },
+    [UNREGISTER_FIELDS](state, { payload: { unregistrations } }) {
+      return unregistrations.reduce((curState, { name, destroyOnUnmount }) => {
+        return unregisterField(curState, name, destroyOnUnmount)
+      }, state)
     },
     [UNTOUCH](state, { meta: { fields } }) {
       let result = state

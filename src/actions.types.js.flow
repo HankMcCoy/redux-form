@@ -162,6 +162,18 @@ export type RegisterFieldAction = {
 export type RegisterField = {
   (form: string, name: string, type: FieldType): RegisterFieldAction
 }
+export type Registration = {
+  name: string,
+  type: FieldType
+}
+export type RegisterFieldsAction = {
+  type: string,
+  meta: { form: string },
+  payload: { registrations: Array<Registration> }
+}
+export type RegisterFields = {
+  (form: string, registrations: Array<Registration>): RegisterFieldsAction
+}
 export type ResetAction = { type: string, meta: { form: string } } & Action
 export type Reset = { (form: string): ResetAction }
 export type StartAsyncValidationAction = {
@@ -227,6 +239,22 @@ export type UnregisterFieldAction = {
 } & Action
 export type UnregisterField = {
   (form: string, name: string, destroyOnUnmount: boolean): UnregisterFieldAction
+}
+export type Unregistration = {
+  name: string,
+  destroyOnUnmount: boolean
+}
+export type UnregisterFieldsAction = {
+  type: string,
+  meta: { form: string },
+  payload: { unregistrations: Array<Unregistration> }
+}
+export type UnregisterFields = {
+  (
+    form: string,
+    unregistrations: Array<Unregistration>,
+    destroyOnUnmount: boolean
+  ): UnregisterFieldsAction
 }
 export type UntouchAction = {
   type: string,

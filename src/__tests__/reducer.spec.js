@@ -35,7 +35,9 @@ import describeStartAsyncValidation from './reducer.startAsyncValidation.spec'
 import describeStopAsyncValidation from './reducer.stopAsyncValidation.spec'
 import describeSubmit from './reducer.submit.spec'
 import describeRegisterField from './reducer.registerField.spec'
+import describeRegisterFields from './reducer.registerFields.spec'
 import describeUnregisterField from './reducer.unregisterField.spec'
+import describeUnregisterFields from './reducer.unregisterFields.spec'
 import describeUntouch from './reducer.untouch.spec'
 import describeUpdateSyncErrors from './reducer.updateSyncErrors.spec'
 import describeUpdateSyncWarnings from './reducer.updateSyncWarnings.spec'
@@ -70,7 +72,9 @@ const tests = {
   stopAsyncValidation: describeStopAsyncValidation,
   submit: describeSubmit,
   registerField: describeRegisterField,
+  registerFields: describeRegisterFields,
   unregisterField: describeUnregisterField,
+  unregisterFields: describeUnregisterFields,
   untouch: describeUntouch,
   updateSyncErrors: describeUpdateSyncErrors,
   updateSyncWarnings: describeUpdateSyncWarnings,
