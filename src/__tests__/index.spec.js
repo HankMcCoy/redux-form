@@ -51,6 +51,7 @@ import {
   reducer,
   reduxForm,
   registerField,
+  registerFields,
   reset,
   setSubmitFailed,
   setSubmitSucceeded,
@@ -62,6 +63,7 @@ import {
   SubmissionError,
   touch,
   unregisterField,
+  unregisterFields,
   untouch,
   values
 } from '../index'
@@ -208,6 +210,9 @@ describe('index', () => {
   it('should export registerField', () => {
     expect(registerField).toExist().toBeA('function')
   })
+  it('should export registerFields', () => {
+    expect(registerFields).toExist().toBeA('function')
+  })
   it('should export reset', () => {
     expect(reset).toExist().toBeA('function')
   })
@@ -240,6 +245,9 @@ describe('index', () => {
   })
   it('should export unregisterField', () => {
     expect(unregisterField).toExist().toBeA('function')
+  })
+  it('should export unregisterFields', () => {
+    expect(unregisterFields).toExist().toBeA('function')
   })
   it('should export untouch', () => {
     expect(untouch).toExist().toBeA('function')

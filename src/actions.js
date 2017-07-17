@@ -20,6 +20,7 @@ import {
   FOCUS,
   INITIALIZE,
   REGISTER_FIELD,
+  REGISTER_FIELDS,
   RESET,
   SET_SUBMIT_FAILED,
   SET_SUBMIT_SUCCEEDED,
@@ -30,6 +31,7 @@ import {
   SUBMIT,
   TOUCH,
   UNREGISTER_FIELD,
+  UNREGISTER_FIELDS,
   UNTOUCH,
   UPDATE_SYNC_ERRORS,
   UPDATE_SYNC_WARNINGS
@@ -76,6 +78,9 @@ import type {
   Initialize,
   RegisterFieldAction,
   RegisterField,
+  RegisterFieldsAction,
+  RegisterFields,
+  Registration,
   ResetAction,
   Reset,
   StartAsyncValidationAction,
@@ -96,6 +101,9 @@ import type {
   Touch,
   UnregisterFieldAction,
   UnregisterField,
+  UnregisterFieldsAction,
+  UnregisterFields,
+  Unregistration,
   UntouchAction,
   Untouch,
   UpdateSyncErrorsAction,
@@ -297,6 +305,15 @@ const registerField: RegisterField = (
   payload: { name, type }
 })
 
+const registerFields: RegisterFields = (
+  form: string,
+  registrations: Array<Registration>
+): RegisterFieldsAction => ({
+  type: REGISTER_FIELDS,
+  meta: { form },
+  payload: { registrations }
+})
+
 const reset: Reset = (form: string): ResetAction => ({
   type: RESET,
   meta: { form }
@@ -373,6 +390,23 @@ const unregisterField: UnregisterField = (
   payload: { name, destroyOnUnmount }
 })
 
+const unregisterFields: UnregisterFields = (
+  form: string,
+  unregistrations: Array<Unregistration>
+): UnregisterFieldsAction => ({
+  type: UNREGISTER_FIELDS,
+  meta: { form },
+  payload: {
+    // Default destroyOnUnmount to true
+    unregistrations: unregistrations.map(
+      ur =>
+        ur.destroyOnUnmount === undefined
+          ? { ...ur, destroyOnUnmount: true }
+          : ur
+    )
+  }
+})
+
 const untouch: Untouch = (
   form: string,
   ...fields: string[]
@@ -422,6 +456,7 @@ const actions = {
   focus,
   initialize,
   registerField,
+  registerFields,
   reset,
   startAsyncValidation,
   startSubmit,
@@ -432,6 +467,7 @@ const actions = {
   setSubmitSucceeded,
   touch,
   unregisterField,
+  unregisterFields,
   untouch,
   updateSyncErrors,
   updateSyncWarnings
